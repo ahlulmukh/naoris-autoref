@@ -56,7 +56,6 @@ async function main() {
 
           accounts.push({
             walletAddress: wallet.address,
-            token: token,
             deviceHash: Number(hashId),
           });
         } else {
