@@ -4,6 +4,7 @@ const { generateDeviceHash } = require("./utils/generator");
 const { getRandomProxy, loadProxies } = require("./classes/proxy");
 const chalk = require("chalk");
 const fs = require("fs");
+const path = require("path");
 
 async function main() {
   console.log(
@@ -18,6 +19,10 @@ async function main() {
 
   const refCode = await prompt(chalk.yellow("Enter Referral Code: "));
   const count = parseInt(await prompt(chalk.yellow("How many do you want? ")));
+  const deviceCount = parseInt(
+    await prompt(chalk.yellow("How many device you want?: "))
+  );
+
   const proxiesLoaded = loadProxies();
   if (!proxiesLoaded) {
     logMessage(null, null, "No Proxy. Using default IP", "warning");
@@ -27,9 +32,12 @@ async function main() {
   const accountNaoris = fs.createWriteStream("accounts.txt", { flags: "a" });
 
   let accounts = [];
-  if (fs.existsSync("accounts.json")) {
-    const data = fs.readFileSync("accounts.json", "utf8");
+  const filePath = path.join(__dirname, "../accounts.json");
+  if (fs.existsSync(filePath)) {
+    const data = fs.readFileSync(filePath, "utf8");
     accounts = JSON.parse(data);
+  } else {
+    fs.writeFileSync(filePath, JSON.stringify([], null, 2));
   }
 
   try {
@@ -41,13 +49,15 @@ async function main() {
       const naoris = new naorisProtocol(refCode, currentProxy, i + 1, count);
 
       try {
-        const hashId = generateDeviceHash();
+        const deviceHashes = Array.from({ length: deviceCount }, () =>
+          generateDeviceHash()
+        );
+
         const encryptWallet = await naoris.createEncryptedWallet();
         const account = await naoris.registerWallet(encryptWallet);
-        if (account) {
+
+        if (account.message === "Wallet created successfully!") {
           logMessage(i + 1, count, "Register Account Success", "success");
-          const token = await naoris.getToken();
-          logMessage(i + 1, count, `Get Token Done`, "success");
           const wallet = naoris.getWallet();
           successful++;
           accountNaoris.write(`Adress : ${wallet.address}\n`);
@@ -56,7 +66,7 @@ async function main() {
 
           accounts.push({
             walletAddress: wallet.address,
-            deviceHash: Number(hashId),
+            deviceHash: deviceHashes,
           });
         } else {
           logMessage(i + 1, count, "Register Account Failed", "error");
@@ -64,10 +74,12 @@ async function main() {
       } catch (error) {
         logMessage(i + 1, count, `Error: ${error.message}`, "error");
       }
+      logMessage(i + 1, count, "Waiting 5 seconds for next account", "process");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   } finally {
     accountNaoris.end();
-    fs.writeFileSync("accounts.json", JSON.stringify(accounts, null, 2));
+    fs.writeFileSync(filePath, JSON.stringify(accounts, null, 2));
 
     console.log(chalk.magenta("\n[*] Dono bang!"));
     console.log(
